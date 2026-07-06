@@ -43,6 +43,7 @@ from flaskr.service.learn.tokui_runtime import (
     get_or_generate_tokui_artifact,
     save_tokui_responses,
 )
+from flaskr.service.learn.ask_image_generation import get_ask_image_refs_for_answer
 from flaskr.util import generate_id
 from flaskr.common.shifu_context import with_shifu_context, get_shifu_context_snapshot
 
@@ -674,6 +675,32 @@ def register_learn_routes(app: Flask, path_prefix: str = "/api/learn") -> Flask:
                 outline_bid,
                 user_bid,
                 force_regenerate=force_regenerate,
+            )
+        )
+
+    @app.route(
+        path_prefix
+        + "/shifu/<shifu_bid>/ask-images/answers/<answer_element_bid>",
+        methods=["GET"],
+    )
+    @with_shifu_context()
+    def get_ask_image_refs_api(shifu_bid: str, answer_element_bid: str):
+        """
+        get learner ask image refs for an answer element
+        ---
+        tags:
+            - learn
+        """
+        user_bid = request.user.user_id
+        preview_mode = request.args.get("preview_mode", "False")
+        preview_mode = preview_mode.lower() == "true"
+        if preview_mode:
+            require_shifu_preview_permission(app, user_bid, shifu_bid)
+        return make_common_response(
+            get_ask_image_refs_for_answer(
+                shifu_bid=shifu_bid,
+                answer_element_bid=answer_element_bid,
+                user_bid=user_bid,
             )
         )
 

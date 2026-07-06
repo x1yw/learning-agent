@@ -108,6 +108,7 @@ jest.mock('@/c-api/studyV2', () => ({
       };
     },
   ),
+  getLearnerAskImageRefs: jest.fn(() => Promise.resolve([])),
 }));
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (

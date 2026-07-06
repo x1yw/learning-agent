@@ -194,6 +194,40 @@ export interface SubmitLessonFeedbackResult {
   mode: 'read' | 'listen';
 }
 
+export interface LearnerAskImageAsset {
+  asset_bid: string;
+  resource_id: string;
+  url: string;
+  title: string;
+  description: string;
+  source: string;
+  status: string;
+}
+
+export interface LearnerAskImageRef {
+  ref_bid: string;
+  shifu_bid: string;
+  outline_item_bid: string;
+  progress_record_bid: string;
+  anchor_element_bid: string;
+  ask_element_bid: string;
+  answer_element_bid: string;
+  asset_bid: string;
+  status: string;
+  description: string;
+  concept_key: string;
+  error_message: string;
+  created_at?: string;
+  updated_at?: string;
+  asset?: LearnerAskImageAsset | null;
+}
+
+export interface GetLearnerAskImageRefsParams {
+  shifu_bid: string;
+  answer_element_bid: string;
+  preview_mode?: boolean;
+}
+
 // Audio types for TTS
 export interface AudioSegmentData {
   segment_index: number;
@@ -516,5 +550,15 @@ export const submitLessonFeedback = async (
   return request.post(
     `/api/learn/shifu/${shifu_bid}/lesson-feedback/${outline_bid}`,
     payload,
+  );
+};
+
+export const getLearnerAskImageRefs = async ({
+  shifu_bid,
+  answer_element_bid,
+  preview_mode = false,
+}: GetLearnerAskImageRefsParams): Promise<LearnerAskImageRef[]> => {
+  return request.get(
+    `/api/learn/shifu/${shifu_bid}/ask-images/answers/${answer_element_bid}?preview_mode=${preview_mode}`,
   );
 };

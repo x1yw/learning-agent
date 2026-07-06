@@ -53,6 +53,7 @@ from flaskr.service.learn.listen_element_queries import (
     _load_latest_active_element_row,
     find_follow_up_element_rows,
 )
+from flaskr.service.learn.ask_image_generation import create_or_reuse_ask_image_ref
 
 check_text_with_llm_response = None
 LLMSettings = None
@@ -276,6 +277,38 @@ def _finalize_ask_trace(
             "output": output,
         },
     )
+
+
+def _maybe_create_ask_image_ref(
+    app: Flask,
+    *,
+    outline_item_info: ShifuOutlineItemDto,
+    attend_id: str,
+    user_bid: str,
+    anchor_element_bid: str,
+    ask_block: LearnGeneratedBlock,
+    answer_block: LearnGeneratedBlock,
+    ask_text: str,
+    answer_text: str,
+    anchor_element: Any | None,
+) -> None:
+    anchor_content = getattr(anchor_element, "content_text", "") or ""
+    try:
+        create_or_reuse_ask_image_ref(
+            app,
+            shifu_bid=outline_item_info.shifu_bid,
+            outline_item_bid=outline_item_info.bid,
+            progress_record_bid=attend_id,
+            user_bid=user_bid,
+            anchor_element_bid=anchor_element_bid,
+            ask_element_bid=getattr(ask_block, "generated_block_bid", "") or "",
+            answer_element_bid=getattr(answer_block, "generated_block_bid", "") or "",
+            ask_text=ask_text,
+            answer_text=answer_text,
+            anchor_content=anchor_content,
+        )
+    except Exception:
+        app.logger.warning("learner ask image ref creation failed", exc_info=True)
 
 
 @extensible_generic
@@ -516,6 +549,19 @@ def handle_input_ask(
             response_text=guardrail_text,
         )
         db.session.flush()
+        _maybe_create_ask_image_ref(
+            app,
+            outline_item_info=outline_item_info,
+            attend_id=attend_id,
+            user_bid=user_info.user_id,
+            anchor_element_bid=anchor_element_bid,
+            ask_block=ask_block,
+            answer_block=answer_block,
+            ask_text=raw_input,
+            answer_text=guardrail_text,
+            anchor_element=anchor_element,
+        )
+        db.session.flush()
         return
 
     # Call LLM to generate response
@@ -686,6 +732,19 @@ def handle_input_ask(
         span=span,
         trace_args=trace_args,
         response_text=response_text,
+    )
+    db.session.flush()
+    _maybe_create_ask_image_ref(
+        app,
+        outline_item_info=outline_item_info,
+        attend_id=attend_id,
+        user_bid=user_info.user_id,
+        anchor_element_bid=anchor_element_bid,
+        ask_block=ask_block,
+        answer_block=answer_block,
+        ask_text=raw_input,
+        answer_text=response_text,
+        anchor_element=anchor_element,
     )
     db.session.flush()
 

@@ -23,6 +23,7 @@ RUN apk add --no-cache libc6-compat python3 make g++ && \
 COPY ${APP_DIR}/ ./
 COPY ${I18N_DIR}/ ./i18n
 
+RUN npm run type-check
 RUN npm run build
 
 FROM node:22.16.0-alpine AS runner
@@ -32,16 +33,19 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV I18N_ROOT=/app/i18n
+ENV NPM_CONFIG_CACHE=/home/node/.npm
 
 RUN apk add --no-cache libc6-compat
 
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/package-lock.json ./
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/i18n ./i18n
+COPY --chown=node:node --from=builder /app/package.json ./
+COPY --chown=node:node --from=builder /app/package-lock.json ./
+COPY --chown=node:node --from=builder /app/.next ./.next
+COPY --chown=node:node --from=builder /app/public ./public
+COPY --chown=node:node --from=builder /app/i18n ./i18n
 
-RUN npm ci --only=production && \
+RUN npm ci --omit=dev && \
+    mkdir -p /app/.next/cache /home/node/.npm && \
+    chown -R node:node /app /home/node/.npm && \
     npm cache clean --force && \
     rm -rf /root/.cache /root/.npm /tmp/*
 

@@ -86,6 +86,7 @@ jest.mock('@/c-store/useSystemStore', () => ({
 }));
 
 const mockCheckIsRunning = jest.fn();
+const mockGetLearnerAskImageRefs = jest.fn();
 const mockGetRunMessage = jest.fn();
 
 jest.mock('@/c-api/studyV2', () => ({
@@ -110,6 +111,8 @@ jest.mock('@/c-api/studyV2', () => ({
     HEARTBEAT: 'heartbeat',
   },
   checkIsRunning: (...args: unknown[]) => mockCheckIsRunning(...args),
+  getLearnerAskImageRefs: (...args: unknown[]) =>
+    mockGetLearnerAskImageRefs(...args),
   getRunMessage: (...args: unknown[]) => mockGetRunMessage(...args),
 }));
 
@@ -160,6 +163,7 @@ describe('AskBlock', () => {
       is_running: false,
       running_time: 0,
     });
+    mockGetLearnerAskImageRefs.mockResolvedValue([]);
     mockGetRunMessage.mockImplementation(
       (
         _shifuBid: string,
@@ -299,6 +303,39 @@ describe('AskBlock', () => {
     });
 
     await waitFor(() => expect(activeRun?.source.close).toHaveBeenCalled());
+  });
+
+  it('removes embedded visual blocks from follow-up answer text', async () => {
+    render(
+      <AppContext.Provider
+        value={{
+          isLoggedIn: false,
+          mobileStyle: false,
+          userInfo: null,
+          theme: 'light',
+          frameLayout: 0,
+        }}
+      >
+        <AskBlock
+          isExpanded={true}
+          shifu_bid='shifu-1'
+          outline_bid='lesson-1'
+          element_bid='block-1'
+          askList={[
+            {
+              type: 'answer',
+              content:
+                '可以。<img src="/robot.png" />![robot](/robot-md.png)<iframe src="/robot"></iframe>机器人可以感知环境。',
+              element_bid: 'answer-1',
+            },
+          ]}
+        />
+      </AppContext.Provider>,
+    );
+
+    expect(screen.getByText('可以。机器人可以感知环境。')).toBeInTheDocument();
+    expect(screen.queryByText(/robot\.png/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/robot-md\.png/)).not.toBeInTheDocument();
   });
 
   it('keeps typewriter enabled when follow-up done is non-terminal', async () => {

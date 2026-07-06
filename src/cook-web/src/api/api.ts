@@ -61,6 +61,8 @@ const api = {
     'POST /learn/shifu/{shifu_bid}/outlines/{outline_bid}/tokui/retry',
   saveLearnerTokuiResponses:
     'POST /learn/shifu/{shifu_bid}/outlines/{outline_bid}/tokui/responses',
+  getLearnerAskImageRefs:
+    'GET /learn/shifu/{shifu_bid}/ask-images/answers/{answer_element_bid}',
   // shifu api end
 
   markFavoriteShifu: 'POST /shifu/mark-favorite-shifu',

@@ -13,9 +13,9 @@ from flaskr.service.learn.models import (
     LearnTokuiResponse,
 )
 from flaskr.service.order.consts import LEARN_STATUS_IN_PROGRESS, LEARN_STATUS_RESET
+from flaskr.service.shifu.api import invoke_tokui_llm
 from flaskr.service.shifu.models import PublishedOutlineItem, PublishedTokuiTemplate
-from flaskr.service.shifu.shifu_tokui_funcs import _invoke_tokui_llm
-from flaskr.service.tokui.common import (
+from flaskr.service.tokui.api import (
     TOKUI_STATUS_FAILED,
     TOKUI_STATUS_FALLBACK,
     TOKUI_STATUS_VALIDATED,
@@ -26,7 +26,6 @@ from flaskr.service.tokui.common import (
     schema_hash,
     stable_hash,
 )
-from flaskr.service.tokui.validator import validate_tokui_dsl
 from flaskr.util import generate_id
 from flaskr.util.datetime import now_utc
 
@@ -252,7 +251,7 @@ def get_or_generate_tokui_artifact(
         parser_version = ""
         validation_ok = False
         try:
-            generated = _invoke_tokui_llm(
+            generated = invoke_tokui_llm(
                 app,
                 user_bid=user_bid,
                 outline=outline,
@@ -266,7 +265,7 @@ def get_or_generate_tokui_artifact(
             validation_errors = [error.to_dict() for error in validation.errors]
             if not validation.ok:
                 repair_attempted = True
-                generated = _invoke_tokui_llm(
+                generated = invoke_tokui_llm(
                     app,
                     user_bid=user_bid,
                     outline=outline,

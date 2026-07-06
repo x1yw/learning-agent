@@ -1,4 +1,5 @@
 import { BLOCK_TYPE } from '@/c-api/studyV2';
+import type { LearnerAskImageRef } from '@/c-api/studyV2';
 
 export interface AskMessage {
   type: typeof BLOCK_TYPE.ASK | typeof BLOCK_TYPE.ANSWER;
@@ -6,6 +7,7 @@ export interface AskMessage {
   isStreaming?: boolean;
   element_bid?: string;
   shouldUseTypewriter?: boolean;
+  imageRefs?: LearnerAskImageRef[];
 }
 
 interface AskAnchorLike {
@@ -43,7 +45,9 @@ export const areAskMessageListsEqual = (
       item.content === nextItem?.content &&
       item.element_bid === nextItem?.element_bid &&
       item.isStreaming === nextItem?.isStreaming &&
-      item.shouldUseTypewriter === nextItem?.shouldUseTypewriter
+      item.shouldUseTypewriter === nextItem?.shouldUseTypewriter &&
+      JSON.stringify(item.imageRefs ?? []) ===
+        JSON.stringify(nextItem?.imageRefs ?? [])
     );
   });
 };

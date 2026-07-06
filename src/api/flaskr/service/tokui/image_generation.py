@@ -12,7 +12,7 @@ import requests
 from flask import Flask
 
 from flaskr.dao import db
-from flaskr.service.check_risk.funcs import check_text_with_risk_control
+from flaskr.service.check_risk.api import check_text_with_risk_control
 from flaskr.service.common import raise_error, raise_param_error
 from flaskr.service.common.oss_utils import OSS_PROFILE_COURSES
 from flaskr.service.common.storage import upload_to_storage

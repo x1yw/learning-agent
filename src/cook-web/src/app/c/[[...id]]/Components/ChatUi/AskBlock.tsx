@@ -11,15 +11,18 @@ import { useTranslation } from 'react-i18next';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { ContentRender, MarkdownFlowInput } from 'markdown-flow-ui/renderer';
 import {
+  getLearnerAskImageRefs,
   getRunMessage,
   SSE_INPUT_TYPE,
   SSE_OUTPUT_TYPE,
 } from '@/c-api/studyV2';
+import type { LearnerAskImageRef } from '@/c-api/studyV2';
 import { fixMarkdownStream } from '@/c-utils/markdownUtils';
 import LoadingBar from './LoadingBar';
 import StreamingLoadingDotsBar from './StreamingLoadingDotsBar';
 import styles from './AskBlock.module.scss';
 import { toast } from '@/hooks/useToast';
+import { ToastAction } from '@/components/ui/Toast';
 import { AppContext } from '../AppContext';
 import { BLOCK_TYPE } from '@/c-api/studyV2';
 import { Avatar, AvatarImage } from '@/components/ui/Avatar';
@@ -32,6 +35,20 @@ import {
 import { useAskStateStore } from './useAskStateStore';
 import { CHAT_TYPEWRITER_SPEED_MS } from '@/c-constants/uiConstants';
 export type { AskMessage } from './askState';
+
+const ASK_IMAGE_POLL_INTERVAL_MS = 3000;
+const ASK_IMAGE_ESTIMATED_SECONDS = 180;
+const ASK_IMAGE_TERMINAL_STATUSES = new Set([
+  'ready',
+  'reused',
+  'failed',
+  'skipped',
+]);
+const ASK_ANSWER_BLOCK_TAG_PATTERN =
+  /<(iframe|img|svg|canvas|video|style|script)\b[\s\S]*?<\/\1>|<(iframe|img|svg|canvas|video)\b[^>]*\/?>/gi;
+const ASK_ANSWER_HTML_CONTAINER_PATTERN =
+  /<([a-z][\w:-]*)\b[^>]*(style|class)=["'][^"']*(background|content-render|iframe|slide|visual)[^"']*["'][^>]*>[\s\S]*?<\/\1>/gi;
+const ASK_ANSWER_MARKDOWN_IMAGE_PATTERN = /!\[[^\]]*]\([^)]+\)/g;
 
 export interface AskBlockProps {
   askList?: AskMessage[];
@@ -92,7 +109,11 @@ export default function AskBlock({
   const sseRef = useRef<any>(null);
   const currentContentRef = useRef<string>('');
   const currentAnswerElementBidRef = useRef<string>('');
+  const notifiedReadyImageRefs = useRef<Set<string>>(new Set());
+  const requestedImageAnswerBids = useRef<Set<string>>(new Set());
   const isStreamingRef = useRef(false);
+  const [askImageNowMs, setAskImageNowMs] = useState(() => Date.now());
+  const [highlightedImageRefBid, setHighlightedImageRefBid] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showMobileDialog, setShowMobileDialog] = useState(hasDisplayMessages);
   const mobileContentRef = useRef<HTMLDivElement | null>(null);
@@ -113,6 +134,105 @@ export default function AskBlock({
       title: t('module.chat.outputInProgress'),
     });
   }, [t]);
+  const sanitizeAskAnswerContent = useCallback((content: string) => {
+    return String(content || '')
+      .replace(ASK_ANSWER_BLOCK_TAG_PATTERN, '')
+      .replace(ASK_ANSWER_HTML_CONTAINER_PATTERN, '')
+      .replace(ASK_ANSWER_MARKDOWN_IMAGE_PATTERN, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }, []);
+  const scrollToAskImageRef = useCallback(
+    (refBid: string) => {
+      if (!refBid || typeof document === 'undefined') {
+        return;
+      }
+
+      setShowMobileDialog(true);
+      if (!expandedRef.current) {
+        onToggleAskExpanded?.(element_bid);
+      }
+
+      setHighlightedImageRefBid(refBid);
+      window.setTimeout(() => {
+        const target = document.getElementById(`ask-image-${refBid}`);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 120);
+      window.setTimeout(() => {
+        setHighlightedImageRefBid(current =>
+          current === refBid ? '' : current,
+        );
+      }, 3200);
+    },
+    [element_bid, onToggleAskExpanded],
+  );
+  const mergeImageRefsIntoAnswer = useCallback(
+    (answerElementBid: string, imageRefs: LearnerAskImageRef[]) => {
+      if (!answerElementBid) {
+        return;
+      }
+      setAskList(element_bid, prev => {
+        let hasChanges = false;
+        const nextList = prev.map(item => {
+          if (
+            item.type !== BLOCK_TYPE.ANSWER ||
+            item.element_bid !== answerElementBid
+          ) {
+            return item;
+          }
+          hasChanges = true;
+          return {
+            ...item,
+            imageRefs,
+          };
+        });
+        return hasChanges ? nextList : prev;
+      });
+    },
+    [element_bid, setAskList],
+  );
+
+  const fetchImageRefsForAnswer = useCallback(
+    async (answerElementBid: string) => {
+      if (!answerElementBid) {
+        return [];
+      }
+      try {
+        const refs = await getLearnerAskImageRefs({
+          shifu_bid,
+          answer_element_bid: answerElementBid,
+          preview_mode,
+        });
+        const imageRefs = Array.isArray(refs) ? refs : [];
+        mergeImageRefsIntoAnswer(answerElementBid, imageRefs);
+        imageRefs.forEach(ref => {
+          const isReady =
+            (ref.status === 'ready' || ref.status === 'reused') &&
+            Boolean(ref.asset?.url);
+          if (!isReady || notifiedReadyImageRefs.current.has(ref.ref_bid)) {
+            return;
+          }
+          notifiedReadyImageRefs.current.add(ref.ref_bid);
+          toast({
+            title: t('module.chat.askImageReady'),
+            action: (
+              <ToastAction
+                altText={t('module.chat.askImageJump')}
+                onClick={() => scrollToAskImageRef(ref.ref_bid)}
+              >
+                {t('module.chat.askImageJump')}
+              </ToastAction>
+            ),
+            duration: 10000,
+          });
+        });
+        return imageRefs;
+      } catch {
+        return [];
+      }
+    },
+    [mergeImageRefsIntoAnswer, preview_mode, scrollToAskImageRef, shifu_bid, t],
+  );
   const dismissAskInputFocus = useCallback(() => {
     if (!mobileStyle || typeof document === 'undefined') {
       return;
@@ -347,6 +467,10 @@ export default function AskBlock({
             }
 
             finalizeStreamingMessage();
+            const answerElementBid = currentAnswerElementBidRef.current;
+            if (answerElementBid) {
+              void fetchImageRefsForAnswer(answerElementBid);
+            }
             sseRef.current?.close();
             return;
           }
@@ -380,6 +504,7 @@ export default function AskBlock({
     dismissAskInputFocus,
     showOutputInProgressToast,
     finalizeStreamingMessage,
+    fetchImageRefsForAnswer,
     replaceStreamingAnswerMessage,
     setAskList,
     updateStreamingAnswerMessage,
@@ -399,6 +524,12 @@ export default function AskBlock({
     mobileStyle &&
     shouldShowMobileDialog &&
     (hasAskAnswerMessages || shouldForceSlideMobileDialog);
+  const hasGeneratingAskImage = displayList.some(message =>
+    (message.imageRefs ?? []).some(
+      ref =>
+        ref.status !== 'skipped' && !ASK_IMAGE_TERMINAL_STATUSES.has(ref.status),
+    ),
+  );
 
   useEffect(() => {
     ensureLessonScope(outline_bid);
@@ -464,6 +595,60 @@ export default function AskBlock({
       setShowMobileDialog(true);
     }
   }, [hasDisplayMessages]);
+
+  useEffect(() => {
+    if (!hasGeneratingAskImage) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setAskImageNowMs(Date.now());
+    }, 1000);
+    setAskImageNowMs(Date.now());
+    return () => window.clearInterval(intervalId);
+  }, [hasGeneratingAskImage]);
+
+  useEffect(() => {
+    const uncheckedAnswerElementBids = displayList
+      .filter(
+        message =>
+          message.type === BLOCK_TYPE.ANSWER &&
+          !message.isStreaming &&
+          Boolean(message.element_bid) &&
+          message.imageRefs === undefined &&
+          !requestedImageAnswerBids.current.has(message.element_bid as string),
+      )
+      .map(message => message.element_bid as string);
+    uncheckedAnswerElementBids.forEach(answerElementBid => {
+      requestedImageAnswerBids.current.add(answerElementBid);
+      void fetchImageRefsForAnswer(answerElementBid);
+    });
+
+    const answerElementBids = displayList
+      .filter(
+        message =>
+          message.type === BLOCK_TYPE.ANSWER &&
+          !message.isStreaming &&
+          Boolean(message.element_bid) &&
+          (message.imageRefs ?? []).some(
+            ref => !ASK_IMAGE_TERMINAL_STATUSES.has(ref.status),
+          ),
+      )
+      .map(message => message.element_bid as string);
+
+    if (!answerElementBids.length) {
+      return;
+    }
+
+    const poll = () => {
+      answerElementBids.forEach(answerElementBid => {
+        void fetchImageRefsForAnswer(answerElementBid);
+      });
+    };
+    const intervalId = window.setInterval(poll, ASK_IMAGE_POLL_INTERVAL_MS);
+    poll();
+    return () => window.clearInterval(intervalId);
+  }, [displayList, fetchImageRefsForAnswer]);
 
   useEffect(() => {
     if (!shouldRenderMobileDialog || !expanded) {
@@ -589,6 +774,28 @@ export default function AskBlock({
     [onToggleAskExpanded, element_bid, expanded, mobileStyle],
   );
 
+  const formatAskImageEta = useCallback(
+    (ref: LearnerAskImageRef) => {
+      const createdMs = ref.created_at ? Date.parse(ref.created_at) : NaN;
+      const elapsedSeconds = Number.isFinite(createdMs)
+        ? Math.max(0, Math.floor((askImageNowMs - createdMs) / 1000))
+        : 0;
+      const remainingSeconds = Math.max(
+        0,
+        ASK_IMAGE_ESTIMATED_SECONDS - elapsedSeconds,
+      );
+      const minutes = Math.floor(remainingSeconds / 60);
+      const seconds = remainingSeconds % 60;
+
+      return {
+        minutes,
+        seconds,
+        isOverEstimate: remainingSeconds === 0,
+      };
+    },
+    [askImageNowMs],
+  );
+
   const renderMessages = ({
     extraClass,
     messages = messagesToShow,
@@ -646,7 +853,7 @@ export default function AskBlock({
                   )}
                 >
                   <ContentRender
-                    content={message.content}
+                    content={sanitizeAskAnswerContent(message.content)}
                     customRenderBar={
                       message.isStreaming
                         ? () =>
@@ -668,7 +875,61 @@ export default function AskBlock({
                     copyButtonText={copyButtonText}
                     copiedButtonText={copiedButtonText}
                   />
+                  {renderImageRefs(message.imageRefs)}
                 </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderImageRefs = (imageRefs: LearnerAskImageRef[] = []) => {
+    const visibleRefs = imageRefs.filter(ref => ref.status !== 'skipped');
+    if (!visibleRefs.length) {
+      return null;
+    }
+
+    return (
+      <div className={styles.askImageList}>
+        {visibleRefs.map(ref => {
+          const imageUrl = ref.asset?.url || '';
+          const isReady =
+            (ref.status === 'ready' || ref.status === 'reused') &&
+            Boolean(imageUrl);
+          const isFailed = ref.status === 'failed';
+          const eta = formatAskImageEta(ref);
+          return (
+            <div
+              key={ref.ref_bid}
+              id={`ask-image-${ref.ref_bid}`}
+              className={cn(
+                styles.askImageCard,
+                highlightedImageRefBid === ref.ref_bid &&
+                  styles.askImageCardHighlighted,
+              )}
+            >
+              {isReady ? (
+                <img
+                  className={styles.askImage}
+                  src={imageUrl}
+                  alt={ref.description || t('module.chat.askImageAlt')}
+                />
+              ) : (
+                <div className={styles.askImagePending}>
+                  {isFailed
+                    ? t('module.chat.askImageFailed')
+                    : eta.isOverEstimate
+                      ? t('module.chat.askImageGeneratingNearlyReady')
+                      : t('module.chat.askImageGeneratingWithEta', {
+                          minutes: eta.minutes,
+                          seconds: eta.seconds,
+                        })}
+                </div>
+              )}
+              {ref.description && (
+                <div className={styles.askImageCaption}>{ref.description}</div>
               )}
             </div>
           );

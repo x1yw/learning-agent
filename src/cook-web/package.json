@@ -12,7 +12,7 @@
     "start": "next start",
     "lint": "next lint --cache-location .eslintcache",
     "lint-file": "next lint --fix --file",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit --incremental false",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "format:check:changed": "node scripts/prettier-check-changed.mjs",

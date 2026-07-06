@@ -38,6 +38,7 @@
   .assistantMessage {
     width: 100%;
     display: flex;
+    flex-direction: column;
     justify-content: flex-start;
     color: rgba(0, 0, 0, 0.65);
     font-family: 'PingFang SC';
@@ -50,6 +51,54 @@
     :global(.content-render-iframe-sandbox) {
       height: auto !important;
     }
+  }
+  .askImageList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+    max-width: min(100%, 360px);
+  }
+  .askImageCard {
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease;
+    scroll-margin: 96px;
+  }
+  .askImageCardHighlighted {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+  }
+  .askImage {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    background: #f4f5f5;
+  }
+  .askImagePending {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 132px;
+    padding: 14px;
+    color: rgba(0, 0, 0, 0.55);
+    background: #f8fafc;
+    font-size: 14px;
+    line-height: 20px;
+    text-align: center;
+    white-space: pre-line;
+  }
+  .askImageCaption {
+    padding: 8px 10px;
+    color: rgba(0, 0, 0, 0.65);
+    font-size: 13px;
+    line-height: 18px;
+    word-break: break-word;
   }
   .userInput {
     display: flex;

@@ -138,7 +138,7 @@ from flaskr.service.shifu.shifu_tokui_funcs import (
     save_draft_tokui_template,
     validate_tokui_preview,
 )
-from flaskr.service.tokui.image_generation import generate_tokui_image_media_ref
+from flaskr.service.tokui.api import generate_tokui_image_media_ref
 from flaskr.service.tokui.image_jobs import (
     create_tokui_image_generation_job,
     get_latest_tokui_image_generation_job,

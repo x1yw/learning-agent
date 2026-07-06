@@ -720,3 +720,287 @@ class LearnTokuiResponse(db.Model):
         onupdate=now_utc,
         comment="Last update timestamp",
     )
+
+
+class CourseImageAsset(db.Model):
+    """Course-level image asset that can be reused by learner follow-up asks."""
+
+    __tablename__ = "course_image_assets"
+    __table_args__ = (
+        Index(
+            "idx_course_image_asset_concept",
+            "shifu_bid",
+            "concept_key",
+            "deleted",
+            "status",
+        ),
+        Index(
+            "idx_course_image_asset_prompt",
+            "shifu_bid",
+            "normalized_prompt_hash",
+            "deleted",
+            "status",
+        ),
+        {"comment": "Course reusable image assets"},
+    )
+
+    id = Column(BIGINT, primary_key=True, autoincrement=True)
+    asset_bid = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="Course image asset business identifier",
+        index=True,
+    )
+    shifu_bid = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="Shifu business identifier",
+        index=True,
+    )
+    resource_id = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="Resource business identifier",
+        index=True,
+    )
+    description = Column(
+        Text,
+        nullable=False,
+        default="",
+        comment="Image description for teachers and learners",
+    )
+    normalized_prompt = Column(
+        Text,
+        nullable=False,
+        default="",
+        comment="Normalized generation prompt",
+    )
+    normalized_prompt_hash = Column(
+        String(64),
+        nullable=False,
+        default="",
+        comment="SHA256 hash of normalized prompt",
+        index=True,
+    )
+    concept_key = Column(
+        String(128),
+        nullable=False,
+        default="",
+        comment="Reusable concept key",
+        index=True,
+    )
+    source = Column(
+        String(32),
+        nullable=False,
+        default="teacher",
+        comment="Asset source: teacher or learner_ask",
+        index=True,
+    )
+    status = Column(
+        String(32),
+        nullable=False,
+        default="pending_review",
+        comment="Asset status: generating/ready/failed/hidden/pending_review/approved",
+        index=True,
+    )
+    origin_user_bid = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="Origin learner user business identifier",
+        index=True,
+    )
+    origin_progress_record_bid = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="Origin progress record business identifier",
+        index=True,
+    )
+    origin_answer_element_bid = Column(
+        String(64),
+        nullable=False,
+        default="",
+        comment="Origin answer element business identifier",
+        index=True,
+    )
+    error_message = Column(
+        Text,
+        nullable=False,
+        default="",
+        comment="Last generation error summary",
+    )
+    deleted = Column(
+        SmallInteger,
+        nullable=False,
+        default=0,
+        comment="Deletion flag: 0=active, 1=deleted",
+        index=True,
+    )
+    created_by = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="Creator user business identifier",
+    )
+    updated_by = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="Updater user business identifier",
+    )
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        default=now_utc,
+        comment="Creation time",
+    )
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=now_utc,
+        onupdate=now_utc,
+        comment="Update time",
+    )
+
+
+class LearnAskImageRef(db.Model):
+    """Image state attached to one learner follow-up answer."""
+
+    __tablename__ = "learn_ask_image_refs"
+    __table_args__ = (
+        Index(
+            "idx_learn_ask_image_answer",
+            "answer_element_bid",
+            "user_bid",
+            "deleted",
+        ),
+        Index(
+            "idx_learn_ask_image_progress",
+            "progress_record_bid",
+            "user_bid",
+            "deleted",
+            "status",
+        ),
+        {"comment": "Learner ask image references"},
+    )
+
+    id = Column(BIGINT, primary_key=True, autoincrement=True)
+    ref_bid = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="Ask image reference business identifier",
+        index=True,
+    )
+    shifu_bid = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="Shifu business identifier",
+        index=True,
+    )
+    outline_item_bid = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="Outline item business identifier",
+        index=True,
+    )
+    progress_record_bid = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="Learn progress record business identifier",
+        index=True,
+    )
+    user_bid = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="User business identifier",
+        index=True,
+    )
+    anchor_element_bid = Column(
+        String(64),
+        nullable=False,
+        default="",
+        comment="Ask anchor element business identifier",
+        index=True,
+    )
+    ask_element_bid = Column(
+        String(64),
+        nullable=False,
+        default="",
+        comment="Ask element business identifier",
+        index=True,
+    )
+    answer_element_bid = Column(
+        String(64),
+        nullable=False,
+        default="",
+        comment="Answer element business identifier",
+        index=True,
+    )
+    asset_bid = Column(
+        String(36),
+        nullable=False,
+        default="",
+        comment="Course image asset business identifier",
+        index=True,
+    )
+    status = Column(
+        String(32),
+        nullable=False,
+        default="pending",
+        comment="Reference status: pending/reused/generating/ready/failed/skipped",
+        index=True,
+    )
+    description = Column(
+        Text,
+        nullable=False,
+        default="",
+        comment="Learner-facing image description",
+    )
+    normalized_prompt = Column(
+        Text,
+        nullable=False,
+        default="",
+        comment="Normalized generation prompt",
+    )
+    concept_key = Column(
+        String(128),
+        nullable=False,
+        default="",
+        comment="Reusable concept key",
+        index=True,
+    )
+    error_message = Column(
+        Text,
+        nullable=False,
+        default="",
+        comment="Last generation error summary",
+    )
+    deleted = Column(
+        SmallInteger,
+        nullable=False,
+        default=0,
+        comment="Deletion flag: 0=active, 1=deleted",
+        index=True,
+    )
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        default=now_utc,
+        comment="Creation time",
+    )
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=now_utc,
+        onupdate=now_utc,
+        comment="Update time",
+    )
